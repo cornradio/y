@@ -33,7 +33,7 @@ y() {
       done
     fi
     printf '%*s' $COLUMNS '' | tr ' ' '─'; echo
-    printf '\033[32m[%d/%d] [hjkl/↑↓←→]Move [Enter]Open [<>]Page [/]Search [.]Dot [C]CD [R]Rename [d]Trash [Q]Quit\033[0m\033[K' $((sel+1)) $total
+    printf '\033[32m[%d/%d] [hjkl/↑↓←→]Move [Enter]Open [<>]Page [/]Search [.]Dot [C]CD [R]Rename [v]VSCode [d]Trash [Q]Quit\033[0m\033[K' $((sel+1)) $total
     IFS= read -rs -k 1 key
     case "$key" in
       $'\e')
@@ -80,6 +80,13 @@ y() {
           stty -echo -icanon 2>/dev/null; printf '\033[?25l'; clear
         fi ;;
       $'\n'|$'\r') (( total )) && open "${items[$((sel+1))]}" ;;
+      v) (( total )) && code "${items[$((sel+1))]}" ;;
+      V)
+        if (( total )); then
+          printf '\033[?25h'; stty "$old_stty" 2>/dev/null
+          vim "${items[$((sel+1))]}"
+          stty -echo -icanon 2>/dev/null; printf '\033[?25l'; clear
+        fi ;;
       $'\x7f'|$'\b') child=${dir:t}; dir=${dir:h}; sel=0; filter=""; if (( show_dot )); then items=( "$dir"/*(ND) ); else items=( "$dir"/*(N) ); fi; for (( idx=1; idx<=${#items}; idx++ )); do [[ ${items[idx]:t} == $child ]] && { sel=$((idx-1)); break; }; done; clear ;;
       q|Q) break ;;
       c|C)
