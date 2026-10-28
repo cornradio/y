@@ -71,7 +71,7 @@ function y {
             }
 
             Write-Host ("─" * $winWidth) -ForegroundColor DarkGray;
-            $status = " [$($selectedIndex + 1)/$totalCount] [↑↓←→/HJKL]Move [Enter]Start [< >]Page [C]CD [D]Trash [/]Search [Q]Quit";
+            $status = " [$($selectedIndex + 1)/$totalCount] [↑↓←→/HJKL]Move [Enter]Start [V]Code [< >]Page [C]CD [R]Rename [D]Trash [/]Search [Q]Quit";
             Write-Host $status.PadRight($winWidth) -ForegroundColor Green;
 
             $key = [Console]::ReadKey($true);
@@ -122,7 +122,34 @@ function y {
                 'Enter' {
                     if ($totalCount -gt 0) {
                         $selectedItem = $items[$selectedIndex];
-                        Invoke-Item -LiteralPath $selectedItem.FullName -ErrorAction SilentlyContinue;
+                        try {
+                            if ($key.Modifiers.HasFlag([ConsoleModifiers]::Shift)) {
+                                Start-Process -FilePath "$env:WINDIR\explorer.exe" -ArgumentList "`"$($selectedItem.FullName)`"" -ErrorAction Stop;
+                            } else {
+                                Invoke-Item -LiteralPath $selectedItem.FullName -ErrorAction Stop;
+                            }
+                        } catch {
+                            Write-Host " Open failed: $_`n Press any key to continue..." -ForegroundColor Red;
+                            $null = [Console]::ReadKey($true);
+                            Clear-Host;
+                        }
+                    }
+                }
+                'V' {
+                    if ($totalCount -gt 0) {
+                        $selectedItem = $items[$selectedIndex];
+                        try {
+                            if ($key.Modifiers.HasFlag([ConsoleModifiers]::Shift)) {
+                                & vim $selectedItem.FullName;
+                            } else {
+                                & code $selectedItem.FullName;
+                            }
+                        } catch {
+                            $editor = if ($key.Modifiers.HasFlag([ConsoleModifiers]::Shift)) { "Vim" } else { "VS Code" };
+                            Write-Host " Open in $editor failed: $_`n Press any key to continue..." -ForegroundColor Red;
+                            $null = [Console]::ReadKey($true);
+                            Clear-Host;
+                        }
                     }
                 }
                 'C' {
@@ -134,7 +161,7 @@ function y {
                     if (-not [string]::IsNullOrWhiteSpace($rawInput)) {
                         $targetPath =$rawInput.Trim().Trim('"').Trim("'");
                         if (Test-Path -LiteralPath $targetPath -PathType Container) {
-                            $currentPath = (Get-Item -LiteralPath$targetPath).FullName;
+                            $currentPath = (Get-Item -LiteralPath $targetPath).FullName;
                             $selectedIndex = 0;
                             $filter = "";
                         } else {
@@ -143,6 +170,34 @@ function y {
                         }
                     }
                     Clear-Host;
+                }
+                'R' {
+                    if ($totalCount -gt 0) {
+                        $selectedItem = $items[$selectedIndex];
+                        [Console]::CursorVisible = $true;
+                        Write-Host "`n";
+                        try {
+                            $newName = Read-Host " Rename [$($selectedItem.Name)] to (Leave empty to cancel)";
+                        } finally {
+                            [Console]::CursorVisible = $false;
+                        }
+
+                        if (-not [string]::IsNullOrWhiteSpace($newName)) {
+                            try {
+                                if ($newName -eq '.' -or $newName -eq '..' -or
+                                    $newName.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0) {
+                                    throw "Enter a name only, without a directory path or invalid characters.";
+                                }
+                                if ($newName -cne $selectedItem.Name) {
+                                    Rename-Item -LiteralPath $selectedItem.FullName -NewName $newName -ErrorAction Stop;
+                                }
+                            } catch {
+                                Write-Host " Rename failed: $_`n Press any key to continue..." -ForegroundColor Red;
+                                $null = [Console]::ReadKey($true);
+                            }
+                        }
+                        Clear-Host;
+                    }
                 }
                 'D' {
                     if ($totalCount -gt 0) {$selectedItem = $items[$selectedIndex];
