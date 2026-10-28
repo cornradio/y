@@ -15,7 +15,7 @@ y() {
     total=${#items}
     (( total == 0 )) && sel=0 || { (( sel >= total )) && sel=$((total-1)); (( sel < 0 )) && sel=0; }
     pages=$(( total ? (total + page - 1) / page : 1 )); start=$(( sel / page * page ))
-    printf '\033[H\033[36m📂 %s%s%s [Page %d/%d]\033[0m\033[K\n' "$dir" "${filter:+ 🔍/$filter}" "${show_dot:+ ·dot}" $(( sel / page + 1 )) $pages
+    printf '\033[H\033[36m📂 %s%s%s [Page %d/%d]\033[0m\033[K\n' "$dir" "${filter:+ 🔍/$filter}" $(( sel / page + 1 )) $pages
     printf '%*s' $COLUMNS '' | tr ' ' '─'; echo
     if (( total == 0 )); then
       [[ -n $filter ]] && echo '  <No Match>' || echo '  <Empty Directory>'
