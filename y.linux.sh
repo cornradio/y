@@ -69,7 +69,7 @@ y() {
     pages=$(( total ? (total + page - 1) / page : 1 ))
     start=$(( sel / page * page ))
     cols=${COLUMNS:-80}
-    printf '\033[H\033[36m[DIR] %s%s [Page %d/%d]\033[0m\033[K\n' \
+    printf '\033[H\033[36m 📁 %s%s [Page %d/%d]\033[0m\033[K\n' \
       "$dir" "${filter:+ /$filter}" $(( sel / page + 1 )) $pages
     printf '%*s\n' "$cols" '' | tr ' ' '-'
     if (( total == 0 )); then

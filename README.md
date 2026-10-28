@@ -12,7 +12,7 @@ win 截图
 <img width="600" height="" alt="image" src="https://github.com/user-attachments/assets/562093e5-9fca-47a4-b66c-fccdcdcceeaf" />
 
 
-# y （formacos）
+# y for mac
 
 一个零依赖的 macOS 终端文件浏览器，纯 zsh 函数实现，PowerShell 版文件管理器的 macOS 移植。
 
@@ -46,4 +46,13 @@ win 截图
 
 
 [安装代码](y.win.ps1)
+
+
+# y for linux
+安装方法：
+修改.bashrc 然后 source .bashrc 即可使用。
+
+注： trash位置一般是 ~/.local/share/Trash/files/
+
+[安装代码](y.linux.ps1)
 
