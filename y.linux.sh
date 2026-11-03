@@ -18,8 +18,6 @@ _y_trash() {
   mv -- "$f" "$dest"
 }
 
-_y_lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-
 # Uses caller's `items` and `show_dot` (bash dynamic scope).
 _y_list() {
   local d=$1
@@ -42,12 +40,25 @@ _y_list() {
   done
 }
 
+_y_filter() {
+  # filter items in-place by basename (case-insensitive, no subprocess)
+  [[ -z $filter ]] && return
+  local -a all=( "${items[@]}" )
+  local item name
+  items=()
+  shopt -s nocasematch
+  for item in "${all[@]}"; do
+    name=${item##*/}
+    [[ $name == *"$filter"* ]] && items+=( "$item" )
+  done
+  shopt -u nocasematch
+}
 
 y() {
   local dir="$PWD" old_stty key seq item input dest name child filter=""
   local -i sel=0 page=15 total start i idx pages del show_dot=1
   local -a items all
-  local cols
+  local cols blank
   old_stty=$(stty -g 2>/dev/null)
   stty -echo -icanon 2>/dev/null
   printf '\033[?25l'
@@ -56,25 +67,19 @@ y() {
     while [[ $dir == *'//'* ]]; do dir=${dir//\/\//\/}; done
     [[ $dir != / ]] && dir=${dir%/}
     _y_list "$dir"
-    if [[ -n $filter ]]; then
-      all=( "${items[@]}" )
-      items=()
-      for item in "${all[@]}"; do
-        name=${item##*/}
-        [[ $(_y_lower "$name") == *"$(_y_lower "$filter")"* ]] && items+=( "$item" )
-      done
-    fi
+    _y_filter
     total=${#items[@]}
     (( total == 0 )) && sel=0 || { (( sel >= total )) && sel=$((total - 1)); (( sel < 0 )) && sel=0; }
     pages=$(( total ? (total + page - 1) / page : 1 ))
     start=$(( sel / page * page ))
     cols=${COLUMNS:-80}
+    blank=$(printf '%*s' "$cols" '')
     printf '\033[H\033[36m 📁 %s%s [Page %d/%d]\033[0m\033[K\n' \
       "$dir" "${filter:+ /$filter}" $(( sel / page + 1 )) $pages
-    printf '%*s\n' "$cols" '' | tr ' ' '-'
+    printf '%s\033[K\n' "${blank// /-}"
     if (( total == 0 )); then
-      [[ -n $filter ]] && echo '  <No Match>' || echo '  <Empty Directory>'
-      for (( i = 1; i < page; i++ )); do echo; done
+      [[ -n $filter ]] && printf '  <No Match>\033[K\n' || printf '  <Empty Directory>\033[K\n'
+      for (( i = 1; i < page; i++ )); do printf '\033[K\n'; done
     else
       for (( i = 0; i < page; i++ )); do
         idx=$(( start + i ))
@@ -96,12 +101,12 @@ y() {
             printf ' 📄 %s\033[K\n' "$name"
           fi
         else
-          echo
+          printf '\033[K\n'
         fi
       done
     fi
-    printf '%*s\n' "$cols" '' | tr ' ' '-'
-    printf '\033[32m[%d/%d] [hjkl]Move [Enter]Open [<>]Page [/]Search [.]Dot [C]CD [R]Rename [v]vim [d]Trash [Q]Quit\033[0m\033[K' \
+    printf '%s\033[K\n' "${blank// /-}"
+    printf '\033[32m[%d/%d] [hjkl]Move [Enter]Open [<>]Page [/]Search [.]Dot [C]CD [R]Rename [v]vim [d]Trash [Q]Quit\033[0m\033[K\033[J' \
       $((sel + 1)) $total
     # bash: -n1 one char; zsh users sourcing this also hit bash if script is bash — keep bash API
     IFS= read -rsn1 key || true
@@ -173,13 +178,7 @@ y() {
             else
               child=$input
               _y_list "$dir"
-              if [[ -n $filter ]]; then
-                all=( "${items[@]}" ); items=()
-                for item in "${all[@]}"; do
-                  name=${item##*/}
-                  [[ $(_y_lower "$name") == *"$(_y_lower "$filter")"* ]] && items+=( "$item" )
-                done
-              fi
+              _y_filter
               for (( idx = 0; idx < ${#items[@]}; idx++ )); do
                 [[ ${items[idx]##*/} == "$child" ]] && { sel=$idx; break; }
               done
