@@ -106,7 +106,7 @@ y() {
       done
     fi
     printf '%s\033[K\n' "${blank// /-}"
-    printf '\033[32m[%d/%d] [hjkl]Move [Enter]Open [<>]Page [/]Search [.]Dot [C]CD [R]Rename [v]vim [d]Trash [Q]Quit\033[0m\033[K\033[J' \
+    printf '\033[32m[%d/%d] [hjkl]Move [Enter]Open [[][]Page [/]Search [.]Dot [C]CD [R]Rename [v]vim [d]Trash [Q]Quit\033[0m\033[K\033[J' \
       $((sel + 1)) $total
     # bash: -n1 one char; zsh users sourcing this also hit bash if script is bash — keep bash API
     IFS= read -rsn1 key || true
@@ -268,8 +268,8 @@ y() {
           clear
         fi
         ;;
-      ','|'<') (( start > 0 )) && sel=$((start - page)) && clear ;;
-      '>') (( start + page < total )) && sel=$((start + page)) && clear ;;
+      '[') (( start > 0 )) && sel=$((start - page)) && clear ;;
+      ']') (( start + page < total )) && sel=$((start + page)) && clear ;;
     esac
   done
   [[ -n $old_stty ]] && stty "$old_stty" 2>/dev/null
