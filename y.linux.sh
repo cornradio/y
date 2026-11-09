@@ -268,8 +268,8 @@ y() {
           clear
         fi
         ;;
-      '[') (( start > 0 )) && sel=$((start - page)) && clear ;;
-      ']') (( start + page < total )) && sel=$((start + page)) && clear ;;
+      '['|'【') (( start > 0 )) && sel=$((start - page)) && clear ;;
+      ']'|'】') (( start + page < total )) && sel=$((start + page)) && clear ;;
     esac
   done
   [[ -n $old_stty ]] && stty "$old_stty" 2>/dev/null

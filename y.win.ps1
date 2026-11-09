@@ -248,11 +248,11 @@ function y {
                     } elseif ($key.Key -eq 'Escape') {$filter = "";
                         $selectedIndex = 0;
                         Clear-Host;
-                    } elseif ($key.KeyChar -eq '[') {
+                    } elseif ($key.KeyChar -eq '[' -or $key.KeyChar -eq '【') {
                         if ($currentPage -gt 0) {$selectedIndex = ($currentPage - 1) *$pageSize;
                             Clear-Host;
                         }
-                    } elseif ($key.KeyChar -eq ']') {
+                    } elseif ($key.KeyChar -eq ']' -or $key.KeyChar -eq '】') {
                         if ($currentPage -lt ($totalPages - 1)) {$selectedIndex = ($currentPage + 1) *$pageSize;
                             Clear-Host;
                         }
