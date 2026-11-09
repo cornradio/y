@@ -33,7 +33,7 @@ y() {
       done
     fi
     printf '%*s' $COLUMNS '' | tr ' ' '─'; echo
-    printf '\033[32m[%d/%d] [hjkl/↑↓←→]Move [Enter]Open [[][]Page [/]Search [.]Dot [C]CD [R]Rename [v]VSCode [d]Trash [Q]Quit\033[0m\033[K' $((sel+1)) $total
+    printf '\033[32m[%d/%d] [hjkl/↑↓←→]Move [Enter]Open [ ]Page [/]Search [.]Dot [C]CD [R]Rename [v]VSCode [d]Trash [Q]Quit\033[0m\033[K' $((sel+1)) $total
     IFS= read -rs -k 1 key
     case "$key" in
       $'\e')
