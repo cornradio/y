@@ -1,5 +1,101 @@
+_y_bookmarks_file() { echo "$HOME/.y-bookmarks" }
+
+_y_load_bookmarks() {
+  local file=$(_y_bookmarks_file)
+  [[ -f $file ]] && cat "$file" || echo ""
+}
+
+_y_save_bookmarks() {
+  local file=$(_y_bookmarks_file)
+  printf "%s\n" "$@" > "$file"
+}
+
+_y_toggle_bookmark() {
+  local path=$1 file=$(_y_bookmarks_file)
+  local -a lines=()
+  [[ -f $file ]] && mapfile -t lines < "$file"
+  
+  local found=0
+  for line in "${lines[@]}"; do
+    [[ "$line" == "$path" ]] && { found=1; break; }
+  done
+  
+  if (( found )); then
+    local -a new_lines=()
+    for line in "${lines[@]}"; do
+      [[ "$line" != "$path" ]] && new_lines+=("$line")
+    done
+    _y_save_bookmarks "${new_lines[@]}"
+    echo "removed"
+  else
+    _y_save_bookmarks "${lines[@]}" "$path"
+    echo "added"
+  fi
+}
+
+_y_show_bookmarks() {
+  local -a bookmarks=()
+  local file=$(_y_bookmarks_file)
+  [[ -f $file ]] && mapfile -t bookmarks < "$file"
+  
+  local sel=0 idx total=${#bookmarks[@]} msg="" page=15
+  
+  while true; do
+    printf '\033[H\033[36m🔖 Bookmarks [%d]\033[0m\033[K\n' "$total"
+    printf '%*s' $COLUMNS '' | tr ' ' '─'; echo
+    
+    for (( i=0; i<page; i++ )); do
+      if (( i < total )); then
+        if (( i == sel )); then
+          printf '\033[1;46m 📁 %s\033[0m\033[K\n' "${bookmarks[i]}"
+        else
+          printf ' 📁 %s\033[K\n' "${bookmarks[i]}"
+        fi
+      else
+        echo ""
+      fi
+    done
+    
+    printf '%*s' $COLUMNS '' | tr ' ' '─'; echo
+    printf '\033[32m%s\033[0m\033[K' "$msg"
+    [[ -z $msg ]] && printf '\033[32m[↑↓]Move [Enter]Go [d]Delete [Esc]Back\033[0m\033[K'
+    echo
+    
+    IFS= read -rs -k 1 key
+    case "$key" in
+      k) (( sel > 0 )) && sel=$((sel-1)) ;;
+      j) (( sel < total-1 )) && sel=$((sel+1)) ;;
+      $'\e') IFS= read -rs -k 2 seq
+        case "$seq" in
+          '[A') (( sel > 0 )) && sel=$((sel-1)) ;;
+          '[B') (( sel < total-1 )) && sel=$((sel+1)) ;;
+        esac ;;
+      $'\n'|$'\r')
+        if (( total > 0 )); then
+          printf '\033[?25h'; stty "$old_stty" 2>/dev/null
+          echo "${bookmarks[sel]}"
+          return
+        fi ;;
+      d|D)
+        if (( total > 0 )); then
+          local -a new_bm=()
+          for (( i=0; i<total; i++ )); do
+            (( i != sel )) && new_bm+=("${bookmarks[i]}")
+          done
+          _y_save_bookmarks "${new_bm[@]}"
+          bookmarks=("${new_bm[@]}")
+          total=${#bookmarks[@]}
+          (( sel >= total )) && sel=$((total-1))
+          msg="✓ Deleted"
+          clear
+        fi ;;
+      $'\033') printf '\033[?25h'; stty "$old_stty" 2>/dev/null; return ;; 
+    esac
+  done
+}
+
 y() {
-  local dir="$PWD" old_stty key seq item input dest name child filter="" esc
+  local dir="$PWD" old_stty key seq item input dest name child filter="" esc msg=""
   local -i sel=0 page=15 total start i idx pages del show_dot=1
   local -a items all
   old_stty=$(stty -g 2>/dev/null)
@@ -33,7 +129,12 @@ y() {
       done
     fi
     printf '%*s' $COLUMNS '' | tr ' ' '─'; echo
-    printf '\033[32m[%d/%d] [hjkl/↑↓←→]Move [Enter]Open [ ]Page [/]Search [.]Dot [C]CD [R]Rename [v]VSCode [d]Trash [Q]Quit\033[0m\033[K' $((sel+1)) $total
+    if [[ -n $msg ]]; then
+      printf '\033[32m%s\033[0m\033[K\n' "$msg"
+      msg=""
+    else
+      printf '\033[32m[%d/%d] [hjkl/↑↓←→]Move [Enter]Open []Page [v/V]Code [/]Search [.]Dot [C]CD [R]Rename [d/D]Trash [g]Bookmarks [Q]Quit\033[0m\033[K\n' $((sel+1)) $total
+    fi
     IFS= read -rs -k 1 key
     case "$key" in
       $'\e')
@@ -41,12 +142,12 @@ y() {
         case "$seq" in
           '[A') if (( sel > 0 )); then sel=$((sel-1)); elif (( total )); then sel=$((total-1)); fi ;;
           '[B') if (( sel < total-1 )); then sel=$((sel+1)); else sel=0; fi ;;
-          '[C') item=${items[$((sel+1))]}; [[ -d $item ]] && { dir=$item; sel=0; filter=""; clear; } ;;
+          '[C') if (( total )); then item=${items[$((sel+1))]}; [[ -d $item ]] && { child=${item:t}; dir=$item; sel=0; filter=""; if (( show_dot )); then items=( "$dir"/*(ND) ); else items=( "$dir"/*(N) ); fi; for (( idx=1; idx<=${#items}; idx++ )); do [[ ${items[idx]:t} == $child ]] && { sel=$((idx-1)); break; }; done; clear; } fi ;;
           '[D') child=${dir:t}; dir=${dir:h}; sel=0; filter=""; if (( show_dot )); then items=( "$dir"/*(ND) ); else items=( "$dir"/*(N) ); fi; for (( idx=1; idx<=${#items}; idx++ )); do [[ ${items[idx]:t} == $child ]] && { sel=$((idx-1)); break; }; done; clear ;;
         esac ;;
-      k) if (( sel > 0 )); then sel=$((sel-1)); elif (( total )); then sel=$((total-1)); fi ;;
-      j) if (( sel < total-1 )); then sel=$((sel+1)); else sel=0; fi ;;
-      l) item=${items[$((sel+1))]}; [[ -d $item ]] && { dir=$item; sel=0; filter=""; clear; } ;;
+      k|K) if (( sel > 0 )); then sel=$((sel-1)); elif (( total )); then sel=$((total-1)); fi ;;
+      j|J) if (( sel < total-1 )); then sel=$((sel+1)); else sel=0; fi ;;
+      l|L) if (( total )); then item=${items[$((sel+1))]}; [[ -d $item ]] && { child=${item:t}; dir=$item; sel=0; filter=""; if (( show_dot )); then items=( "$dir"/*(ND) ); else items=( "$dir"/*(N) ); fi; for (( idx=1; idx<=${#items}; idx++ )); do [[ ${items[idx]:t} == $child ]] && { sel=$((idx-1)); break; }; done; clear; } fi ;;
       h) child=${dir:t}; dir=${dir:h}; sel=0; filter=""; if (( show_dot )); then items=( "$dir"/*(ND) ); else items=( "$dir"/*(N) ); fi; for (( idx=1; idx<=${#items}; idx++ )); do [[ ${items[idx]:t} == $child ]] && { sel=$((idx-1)); break; }; done; clear ;;
       '.') show_dot=$(( 1 - show_dot )); sel=0; clear ;;
       '/')
@@ -112,6 +213,22 @@ y() {
               dest="$HOME/.Trash/${item:t}"; [[ -e $dest ]] && dest="$dest.$(date +%H%M%S)"
               mv "$item" "$dest"
             }
+          fi
+          clear
+        fi ;;
+      g|G)
+        if [[ $key == G ]]; then
+          result=$(_y_show_bookmarks)
+          if [[ -n $result ]]; then
+            [[ -d $result ]] && dir="$result" && sel=0 && filter="" && clear
+          else
+            clear
+          fi
+        else
+          if _y_toggle_bookmark "$dir" | grep -q added; then
+            msg="✓ Bookmarked: $dir"
+          else
+            msg="✗ Removed bookmark: $dir"
           fi
           clear
         fi ;;
