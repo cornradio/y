@@ -1,3 +1,6 @@
+emulate -L zsh
+setopt EXTENDED_GLOB
+
 _y_bookmarks_file() { echo "$HOME/.y-bookmarks" }
 
 _y_load_bookmarks() {
