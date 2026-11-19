@@ -1,5 +1,4 @@
 function y {
-    param([switch]$ToggleBookmark)
 
     function Get-YBookmarkFile { return Join-Path $HOME ".y-bookmarks.json"; }
 
@@ -89,16 +88,6 @@ function y {
                 $msg = " Removed bookmark: $removed";
             }
         }
-    }
-
-    if ($ToggleBookmark) {
-        $p = (Get-Location).Path;
-        if ((Switch-YBookmark $p) -eq "added") {
-            Write-Host " Bookmarked: $p" -ForegroundColor Green;
-        } else {
-            Write-Host " Removed bookmark: $p" -ForegroundColor Yellow;
-        }
-        return;
     }
 
     $currentPath = (Get-Location).Path;
@@ -360,12 +349,10 @@ function y {
                     }
                 }
                 'H' {
-                    $picked = Show-YBookmarks;
-                    Clear-Host;
-                    if ($picked) {
-                        $currentPath = $picked;
-                        $selectedIndex = 0;
-                        $filter = "";
+                    if ((Switch-YBookmark $currentPath) -eq "added") {
+                        $yMsg = " Bookmarked: $currentPath";
+                    } else {
+                        $yMsg = " Removed bookmark: $currentPath";
                     }
                 }
                 'Q' {
