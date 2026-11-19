@@ -1,8 +1,111 @@
 function y {
+    param([switch]$ToggleBookmark)
+
+    function Get-YBookmarkFile { return Join-Path $HOME ".y-bookmarks.json"; }
+
+    function Get-YBookmarks {
+        $file = Get-YBookmarkFile;
+        if (-not (Test-Path -LiteralPath $file)) { return @(); }
+        $data = Get-Content -Raw -LiteralPath $file -Encoding UTF8 | ConvertFrom-Json;
+        return @($data | Where-Object { $_ });
+    }
+
+    function Save-YBookmarks([string[]]$list) {
+        $json = ConvertTo-Json -InputObject @($list);
+        $utf8 = New-Object System.Text.UTF8Encoding $false;
+        [System.IO.File]::WriteAllText((Get-YBookmarkFile), $json, $utf8);
+    }
+
+    function Get-YKey([string]$path) {
+        return $path.TrimEnd('\').ToLowerInvariant();
+    }
+
+    function Switch-YBookmark([string]$path) {
+        $key = Get-YKey $path;
+        $list = @(Get-YBookmarks);
+        $kept = @($list | Where-Object { (Get-YKey $_) -ne $key });
+        if ($kept.Count -lt $list.Count) {
+            Save-YBookmarks $kept;
+            return "removed";
+        }
+        Save-YBookmarks (@($list) + $path);
+        return "added";
+    }
+
+    function Show-YBookmarks {
+        $pageSize = 15;
+        $idx = 0;
+        $msg = "";
+        Clear-Host;
+        while ($true) {
+            $list = @(Get-YBookmarks);
+            if ($list.Count -eq 0) { $idx = 0; } elseif ($idx -ge $list.Count) { $idx = $list.Count - 1; }
+            $winWidth = [Math]::Max(20, [Console]::WindowWidth - 1);
+
+            [Console]::SetCursorPosition(0, 0);
+            Write-Host (" 🔖 Bookmarks [$($list.Count)]".PadRight($winWidth)) -ForegroundColor Cyan;
+            Write-Host ("─" * $winWidth) -ForegroundColor DarkGray;
+
+            $startIndex = [Math]::Floor($idx / $pageSize) * $pageSize;
+            for ($i = 0; $i -lt $pageSize; $i++) {
+                $n = $startIndex + $i;
+                if ($n -ge $list.Count) { Write-Host (" " * $winWidth); continue; }
+                $p = $list[$n];
+                $exists = Test-Path -LiteralPath $p -PathType Container;
+                $text = " 📁 $p$(if (-not $exists) { '  (missing)' })".PadRight($winWidth);
+                if ($n -eq $idx) {
+                    Write-Host $text -BackgroundColor DarkCyan -ForegroundColor White;
+                } else {
+                    $fg = if ($exists) { "Yellow" } else { "DarkGray" };
+                    Write-Host $text -ForegroundColor $fg;
+                }
+            }
+
+            Write-Host ("─" * $winWidth) -ForegroundColor DarkGray;
+            $status = if ($msg) { $msg } else { " [↑↓]Move [Enter]Go [D]Remove [Esc]Back" };
+            Write-Host $status.PadRight($winWidth) -ForegroundColor Green;
+            $msg = "";
+
+            $k = [Console]::ReadKey($true);
+            if ($k.Key -eq 'Escape') { return $null; }
+            if ($k.Key -eq 'UpArrow' -or $k.KeyChar -eq 'k' -or $k.KeyChar -eq 'K') {
+                if ($list.Count -gt 0) { $idx = if ($idx -eq 0) { $list.Count - 1 } else { $idx - 1 }; }
+                continue;
+            }
+            if ($k.Key -eq 'DownArrow' -or $k.KeyChar -eq 'j' -or $k.KeyChar -eq 'J') {
+                if ($list.Count -gt 0) { $idx = if ($idx -eq $list.Count - 1) { 0 } else { $idx + 1 }; }
+                continue;
+            }
+            if ($k.Key -eq 'Enter' -and $list.Count -gt 0) {
+                $p = $list[$idx];
+                if (Test-Path -LiteralPath $p -PathType Container) { return $p; }
+                $msg = " Folder not found: $p";
+                continue;
+            }
+            if ($k.Key -eq 'D' -and $list.Count -gt 0) {
+                $removeKey = Get-YKey $list[$idx];
+                $removed = $list[$idx];
+                Save-YBookmarks @($list | Where-Object { (Get-YKey $_) -ne $removeKey });
+                $msg = " Removed bookmark: $removed";
+            }
+        }
+    }
+
+    if ($ToggleBookmark) {
+        $p = (Get-Location).Path;
+        if ((Switch-YBookmark $p) -eq "added") {
+            Write-Host " Bookmarked: $p" -ForegroundColor Green;
+        } else {
+            Write-Host " Removed bookmark: $p" -ForegroundColor Yellow;
+        }
+        return;
+    }
+
     $currentPath = (Get-Location).Path;
     $selectedIndex = 0;
     $pageSize = 15;
     $filter = "";
+    $yMsg = "";
 
     Add-Type -AssemblyName Microsoft.VisualBasic;
     [Console]::CursorVisible = $false;
@@ -10,6 +113,10 @@ function y {
 
     try {
         while ($true) {
+            $folderTitle = Split-Path -Leaf $currentPath;
+            if ([string]::IsNullOrWhiteSpace($folderTitle)) { $folderTitle = $currentPath; }
+            $Host.UI.RawUI.WindowTitle = $folderTitle;
+
             $rawItems = @();
             if (Test-Path -LiteralPath $currentPath -PathType Container) {
                 try { $rawItems = @(Get-ChildItem -LiteralPath $currentPath -ErrorAction Stop); } catch {}
@@ -71,14 +178,15 @@ function y {
             }
 
             Write-Host ("─" * $winWidth) -ForegroundColor DarkGray;
-            $status = " [$($selectedIndex + 1)/$totalCount] [↑↓←→/HJKL]Move [Enter]Start [V]Code [[][]Page [C]CD [R]Rename [D]Trash [/]Search [Q]Quit";
+            $status = if ($yMsg) { $yMsg } else { " [$($selectedIndex + 1)/$totalCount] [↑↓←→/hjkl]Move [Enter]Start [V]Code []Page [C]CD [R]Rename [D]Trash [G]bookmark [/]Search [Q]Quit" };
+            $yMsg = "";
             Write-Host $status.PadRight($winWidth) -ForegroundColor Green;
 
             $key = [Console]::ReadKey($true);
 
             $isUp = $key.Key -eq 'UpArrow' -or $key.KeyChar -eq 'k' -or $key.KeyChar -eq 'K';
             $isDown = $key.Key -eq 'DownArrow' -or $key.KeyChar -eq 'j' -or $key.KeyChar -eq 'J';
-            $isLeft = $key.Key -eq 'LeftArrow' -or $key.KeyChar -eq 'h' -or $key.KeyChar -eq 'H';
+            $isLeft = $key.Key -eq 'LeftArrow' -or $key.KeyChar -eq 'h';
             $isRight = $key.Key -eq 'RightArrow' -or $key.KeyChar -eq 'l' -or $key.KeyChar -eq 'L';
 
             if ($isUp) {
@@ -229,6 +337,35 @@ function y {
                             }
                         }
                         Clear-Host;
+                    }
+                }
+                'G' {
+                    if ($key.Modifiers.HasFlag([ConsoleModifiers]::Shift)) {
+                        $addKey = Get-YKey $currentPath;
+                        $already = @(Get-YBookmarks | Where-Object { (Get-YKey $_) -eq $addKey }).Count -gt 0;
+                        if ($already) {
+                            $yMsg = " Already bookmarked: $currentPath";
+                        } else {
+                            Save-YBookmarks (@(Get-YBookmarks) + $currentPath);
+                            $yMsg = " Bookmarked: $currentPath";
+                        }
+                    } else {
+                        $picked = Show-YBookmarks;
+                        Clear-Host;
+                        if ($picked) {
+                            $currentPath = $picked;
+                            $selectedIndex = 0;
+                            $filter = "";
+                        }
+                    }
+                }
+                'H' {
+                    $picked = Show-YBookmarks;
+                    Clear-Host;
+                    if ($picked) {
+                        $currentPath = $picked;
+                        $selectedIndex = 0;
+                        $filter = "";
                     }
                 }
                 'Q' {
